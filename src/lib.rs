@@ -129,7 +129,7 @@ impl BoidOrchestrator {
 
     pub fn add_boid(mut self) {
 
-        let boid = Boid::new_random_boid(self.world_settings.world_size.x,self.world_settings.world_size.y, self.boids.len() as u32);
+        let boid = Boid::new_random_boid_in_world(self.world_settings.world_size.x, self.world_settings.world_size.y, self.boids.len() as u32);
 
         self.transfer_array.push(boid.position.x);
         self.transfer_array.push(boid.position.y);
@@ -226,7 +226,7 @@ impl Boid {
             id
         }
     }
-    pub fn new_random_boid(world_size_x: u32, world_size_y: u32, id: u32) -> Boid {
+    pub fn new_random_boid_in_world(world_size_x: u32, world_size_y: u32, id: u32) -> Boid {
         let boid = Boid {
             position: Vector2 {
                 x: random() as f32 * world_size_x as f32,
