@@ -2,24 +2,21 @@ mod utils;
 
 use cgmath::InnerSpace;
 use cgmath::Vector2;
-use js_sys::Math::{random, atan};
+use js_sys::Math::{random, atan2};
 use wasm_bindgen::prelude::*;
 use utils::set_panic_hook;
+use std::fmt;
+
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[wasm_bindgen]
 extern "C" {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, wasm-boids!");
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -55,7 +52,11 @@ pub struct BoidOrchestrator {
 
 #[wasm_bindgen]
 impl BoidOrchestrator {
-    pub fn new(world_width: u32, world_height: u32, num_boids: u32) -> BoidOrchestrator {
+    pub fn new(world_width: u32, world_height: u32, num_boids: u32, 
+            pcModifier: f32, 
+            avoidanceModifier: f32, 
+            avoidanceRange: f32,
+            velocityMatchingModifier: f32) -> BoidOrchestrator {
         set_panic_hook();
         let world_size = Vector2 {
             x: world_width,
@@ -83,14 +84,14 @@ impl BoidOrchestrator {
         // Settings
         // will eventaully get fed from input.  
         let avoidance_settings = AvoidanceSettings {
-            avoidance_range: 100.0,
-            avoidance_modifier: 1.0,
+            avoidance_range: avoidanceRange,
+            avoidance_modifier: avoidanceModifier,
         };
         let pc_settings = PerceivedCenterSettings {
-            p_center_modifier: 1.0,
+            p_center_modifier: pcModifier,
         };
         let vel_match_settings = VelocityMatchingSettings {
-            velocity_matching_modifier: 1.0,
+            velocity_matching_modifier: velocityMatchingModifier,
         };
         let settings = WorldSettings {
             world_size,
@@ -106,18 +107,30 @@ impl BoidOrchestrator {
     }
 
     pub fn tick(&mut self, dt: f32) {
+        log("before Tick");
+        log(&self.boids[0].position.x.to_string());
         for i in 0..self.boids.len() {
-            let mut boid = self.boids[i];
+            let boid = self.boids[i];
             let new_boid = self.apply_rules(&boid, dt);
             // add x pos
-            self.transfer_array[i*3] = new_boid.position.x;
+            self.transfer_array[i*3] = boid.position.x;
             // add y pos
-            self.transfer_array[(i*3)+1] = new_boid.position.y;
+            self.transfer_array[(i*3)+1] = boid.position.y;
             // add theta
             self.transfer_array[(i*3)+2] = boid.get_velocity_direction() as f32;
-            boid.position = new_boid.position;
-            boid.velocity = new_boid.velocity;
+            
+            // boid.position.x = new_boid.position.x;
+            
+            
+            
+            // boid.position.y = new_boid.position.y;
+            // boid.velocity.x = new_boid.velocity.x;
+            // boid.velocity.y = new_boid.velocity.y;
+            self.boids[i] = new_boid;
+            
         }
+        log("after Tick");
+        log(&self.boids[0].position.x.to_string());
     }
     pub fn items(&self) -> *const f32 {
         self.transfer_array.as_ptr()
@@ -127,7 +140,7 @@ impl BoidOrchestrator {
         self.transfer_array.len() as u32
     }
 
-    pub fn add_boid(mut self) {
+    pub fn add_boid(&mut self) {
 
         let boid = Boid::new_random_boid_in_world(self.world_settings.world_size.x, self.world_settings.world_size.y, self.boids.len() as u32);
 
@@ -136,16 +149,35 @@ impl BoidOrchestrator {
         self.transfer_array.push(boid.get_velocity_direction() as f32); // TODO get angle calcualtion.
         self.boids.push(boid);
     }
-    pub fn remove_last_boid(mut self) {
+    pub fn remove_last_boid(&mut self) {
         self.transfer_array.pop();
         self.transfer_array.pop();
         self.transfer_array.pop();
         self.boids.pop();
     }
+    pub fn get_velocity_to_percived_center_x(&self, boid_id: u8) {
+        self.boids.fil
+    }
+}
+
+impl fmt::Display for Boid {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "id: {}; position: {}, {}; velocity: {}, {}", self.id, self.position.x, self.position.y, self.velocity.x, self.velocity.y)?;
+        Ok(())
+    }
+
+}
+
+impl fmt::Display for BoidOrchestrator {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.boids)?;
+        
+        Ok(())
+    }
 }
 
 impl BoidOrchestrator {
-    fn apply_rules(&self, boid: &Boid, dt: f32) -> Boid {
+    fn apply_rules(&self, boid: &Boid, dt: f32) -> Boid{
 
         // Get all of the rule's velocities. 
         let convergence_vel: Vector2<f32> =
@@ -154,14 +186,38 @@ impl BoidOrchestrator {
             self.get_avoidance_velocity(boid) * self.world_settings.avoidance.avoidance_modifier;
         let vel_matching_vel: Vector2<f32> = 
             self.get_match_percived_velocity(boid) * self.world_settings.velocity_matching.velocity_matching_modifier;
-        
+        log("Id: ");
+        log(&boid.id.to_string());
+        log("oldVel:");
+        log(&boid.velocity.x.to_string());
+        log(&boid.velocity.y.to_string());
         // add them to the old vel to get the new vel.  
-        let new_velocity = boid.velocity + convergence_vel + avoidance_vel + vel_matching_vel;
+        let mut new_velocity = boid.velocity + convergence_vel + avoidance_vel + vel_matching_vel;
+        if(new_velocity.magnitude2() > 10000.0) {
+            new_velocity = Vector2 {
+                x: 100.0,
+                y: 100.0
+            }
+        }
+
+        log("newVel: ");
+        log(&new_velocity.x.to_string());
+        log(&new_velocity.y.to_string());
         // create the new position, with the dt
         let new_position = Vector2 {
             x: boid.position.x + (new_velocity.x * dt),
             y: boid.position.y + (new_velocity.y * dt)
         };
+        log("oldPosX");
+        log(&boid.position.x.to_string());
+        // boid.position = new_position;
+        log("setNewPos:");
+        log(&new_position.x.to_string());
+        // boid.position.x = boid.position.x + (new_velocity.x * dt);
+        // boid.position.y = boid.position.y + (new_velocity.y * dt);
+        // boid.velocity = new_velocity;
+        // boid.velocity.x = new_velocity.x;
+        // boid.velocity.y = new_velocity.y;
 
         Boid {
             velocity: new_velocity,
@@ -213,7 +269,7 @@ impl BoidOrchestrator {
                 acc + other_boid.velocity
             });
         let center = sum_of_velocity / (self.boids.len() - 1) as f32;
-        return center - boid.velocity / 100.0;
+        return center - boid.velocity / 8.0;
     }
 }
 
@@ -238,6 +294,6 @@ impl Boid {
         boid
     }
     pub fn get_velocity_direction(&self) -> f64 {
-        return atan(self.velocity.y as f64 / self.velocity.x as f64);
+        return atan2(self.velocity.y as f64, self.velocity.x as f64);
     }
 }

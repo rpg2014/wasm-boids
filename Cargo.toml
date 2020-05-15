@@ -1,7 +1,7 @@
 [package]
 name = "wasm-boids"
 version = "0.1.0"
-authors = ["Parker Given <rgiven@amazon.com>"]
+authors = ["Parker Given <pgiven14@gmail.com>"]
 edition = "2018"
 
 [lib]
@@ -14,6 +14,7 @@ default = ["console_error_panic_hook"]
 wasm-bindgen = "0.2"
 cgmath = "0.17"
 js-sys = "0.3.31"
+console_log = {version = "0.2.0", features = ["color"] }
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
